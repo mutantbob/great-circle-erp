@@ -4,7 +4,9 @@ mod app;
 mod background_image;
 mod raw_image;
 mod remapper;
+mod world2;
 mod world_map;
+mod world_map2;
 pub use app::App;
 
 pub fn rect_map<'a, T>(

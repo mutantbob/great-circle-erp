@@ -9,26 +9,7 @@ pub struct GreatCircleRemapper {
 
 impl GreatCircleRemapper {
     pub(crate) fn new(anchors: &[Vec2]) -> Self {
-        let matrix = match anchors.len() {
-            0 => Matrix3::identity(),
-            1 => {
-                let axis_x = spherical_to_cartesian(fracv_to_radians(anchors[0]));
-                let axis_y = Vector3::cross(Vector3::new(0.0, 0.0, 1.0), axis_x).normalize();
-                let axis_z = axis_x.cross(axis_y).normalize();
-                println!("new axes {:.3?}, {:.3?}, {:.3?}", axis_x, axis_y, axis_z);
-                Matrix3::from_cols(axis_x, axis_y, axis_z)
-            }
-            _ => {
-                let anchor1 = anchors[0];
-                let anchor2 = anchors[1];
-                let anchor1 = spherical_to_cartesian(fracv_to_radians(anchor1));
-                let anchor2 = spherical_to_cartesian(fracv_to_radians(anchor2));
-                let axis_x = (anchor1 + anchor2) * 0.5;
-                let axis_z = anchor1.cross(anchor2).normalize();
-                let axis_y = axis_z.cross(axis_x).normalize();
-                Matrix3::from_cols(axis_x, axis_y, axis_z)
-            }
-        };
+        let matrix = Self::matrix_from_anchors(anchors);
 
         let rval = Self {
             matrix,
@@ -46,6 +27,29 @@ impl GreatCircleRemapper {
         rval
     }
 
+    pub fn matrix_from_anchors(anchors: &[Vec2]) -> Matrix3<f32> {
+        match anchors.len() {
+            0 => Matrix3::identity(),
+            1 => {
+                let axis_x = spherical_to_cartesian(fracv_to_radians(anchors[0]));
+                let axis_y = Vector3::cross(Vector3::new(0.0, 0.0, 1.0), axis_x).normalize();
+                let axis_z = axis_x.cross(axis_y).normalize();
+                println!("new axes {:.3?}, {:.3?}, {:.3?}", axis_x, axis_y, axis_z);
+                Matrix3::from_cols(axis_x, axis_y, axis_z)
+            }
+            _ => {
+                let anchor1 = anchors[0];
+                let anchor2 = anchors[1];
+                let anchor1 = spherical_to_cartesian(fracv_to_radians(anchor1));
+                let anchor2 = spherical_to_cartesian(fracv_to_radians(anchor2));
+                let axis_x = ((anchor1 + anchor2) * 0.5).normalize();
+                let axis_z = anchor1.cross(anchor2).normalize();
+                let axis_y = axis_z.cross(axis_x).normalize();
+                Matrix3::from_cols(axis_x, axis_y, axis_z)
+            }
+        }
+    }
+
     pub(crate) fn twist(&self, longitude_frac: f32, latitude_frac: f32) -> Vec2 {
         let theta_phi = frac_to_radians(longitude_frac, latitude_frac);
 
@@ -55,12 +59,20 @@ impl GreatCircleRemapper {
     }
 
     pub(crate) fn untwist(&self, longitude_frac: f32, latitude_frac: f32) -> Vec2 {
-        let phi_theta = frac_to_radians(longitude_frac, latitude_frac);
+        let theta_phi = frac_to_radians(longitude_frac, latitude_frac);
 
-        let xyz = spherical_to_cartesian(phi_theta);
+        let xyz = spherical_to_cartesian(theta_phi);
 
         cartesian_to_lat_long(self.matrix * xyz)
     }
+}
+
+pub fn transform_ll_to_ll(longitude_frac: f32, latitude_frac: f32, matrix: &Matrix3<f32>) -> Vec2 {
+    let theta_phi = frac_to_radians(longitude_frac, latitude_frac);
+
+    let xyz = spherical_to_cartesian(theta_phi);
+
+    cartesian_to_lat_long(matrix * xyz)
 }
 
 fn cartesian_to_lat_long(xyz: Vector3<f32>) -> Vec2 {

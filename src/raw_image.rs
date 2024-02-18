@@ -8,7 +8,7 @@ impl RawImage {
     pub(crate) fn rgba_at(&self, x: usize, y: usize) -> [u8; 4] {
         let width = self.width as usize;
         let height = self.height as usize;
-        if x >= 0 && x < width && y >= 0 && y < height {
+        if x < width && y < height {
             let base = 3 * (x + width * y);
             [
                 self.rgb_pixels[base],

@@ -20,7 +20,7 @@ impl WorldSampler {
         Self { raw_image }
     }
 
-    fn raw_world_map() -> RawImage {
+    pub fn raw_world_map() -> RawImage {
         let raw = include_bytes!("world.png");
         let decoder = png::Decoder::new(Cursor::new(raw));
 
@@ -32,8 +32,7 @@ impl WorldSampler {
         // Grab the bytes of the image.
         buf.truncate(info.buffer_size());
 
-        let raw_image = RawImage::new(info.width, info.height, buf);
-        raw_image
+        RawImage::new(info.width, info.height, buf)
     }
 
     pub(crate) fn get(&self, longitude_frac: f32, latitude_frac: f32) -> [u8; 4] {
@@ -54,6 +53,12 @@ pub struct WorldMap {
     last_hover: Option<(f32, f32)>,
     world_sampler: Arc<WorldSampler>,
     remapper: Arc<GreatCircleRemapper>,
+}
+
+impl Default for WorldMap {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl WorldMap {
@@ -139,21 +144,27 @@ impl Widget for &mut WorldMap {
 
         // println!("enabled? {}", ui.is_enabled());
 
+        #[allow(clippy::single_match)]
         match self.get_texture(ui) {
             Some(texture) => {
                 let texture_size = texture.size_vec2();
-                let rect = Rect::from_min_max(rect.min, rect.min + texture_size);
-                if false {
-                    let img = Image::new(&texture);
-                    img.paint_at(ui, rect);
-                } else {
-                    let full_square = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0));
-                    ui.painter().add(Shape::image(
-                        texture.id(),
-                        rect,
-                        full_square,
-                        Color32::from_rgb(0xff, 0xff, 0xff),
-                    ));
+                match 2 {
+                    1 => {
+                        let rect = Rect::from_min_max(rect.min, rect.min + texture_size);
+                        let img = Image::new(&texture);
+                        img.paint_at(ui, rect);
+                    }
+                    _ => {
+                        let rect = Rect::from_min_max(rect.min, rect.min + texture_size);
+                        let full_square =
+                            Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0));
+                        ui.painter().add(Shape::image(
+                            texture.id(),
+                            rect,
+                            full_square,
+                            Color32::from_rgb(0xff, 0xff, 0xff),
+                        ));
+                    }
                 }
             }
             None => {}
@@ -162,11 +173,8 @@ impl Widget for &mut WorldMap {
         for anchor in &self.anchors {
             let Vec2 { x: u, y: v } = self.remapper.twist(anchor.x, anchor.y);
 
-            let circle = Shape::circle_filled(
-                Pos2::new(u * response.rect.width(), v * response.rect.height()),
-                3.0,
-                Color32::from_rgb(0xff, 0, 0),
-            );
+            let xy = Vec2::new(u * response.rect.width(), v * response.rect.height());
+            let circle = Shape::circle_filled(rect.min + xy, 3.0, Color32::from_rgb(0xff, 0, 0));
             ui.painter().add(circle);
         }
 
@@ -177,7 +185,7 @@ impl Widget for &mut WorldMap {
                 PointerButton::Middle,
             ]
             .into_iter()
-            .map(|button| (&response).clicked_by(button))
+            .map(|button| response.clicked_by(button))
             .collect();
             println!("response {:?}", clicked);
             if response.clicked() {
@@ -288,7 +296,7 @@ pub fn world_map(
         let u0 = col as f32 / width as f32;
         let v0 = row as f32 / height as f32;
 
-        let Vec2 { x: u, y: v } = remapper.twist(u0, v0);
+        let Vec2 { x: u, y: v } = remapper.untwist(u0, v0);
 
         if col == 0 && row == 50 {
             println!("{},{} -> {},{}", u0, v0, u, v)
