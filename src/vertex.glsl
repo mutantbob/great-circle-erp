@@ -1,3 +1,4 @@
+#version 330
 
 const vec2 verts[4] = vec2[4](
 vec2(-2.0, -1.0),

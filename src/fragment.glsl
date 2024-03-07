@@ -1,3 +1,5 @@
+#version 330
+
 precision mediump float;
 uniform sampler2D world;
 uniform mat3 rotation;

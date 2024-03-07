@@ -19,7 +19,7 @@ cgmath = "*"
 png="*"
 
 # You only need serde if you want app persistence:
-serde = { version = "1", features = ["derive"] }
+#serde = { version = "1", features = ["derive"] }
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

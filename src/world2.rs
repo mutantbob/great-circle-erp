@@ -1,32 +1,35 @@
 use crate::world_map::WorldSampler;
-use eframe::egui_glow;
-use eframe::egui_glow::ShaderVersion;
 use eframe::glow;
-use eframe::glow::{
-    Context, HasContext, NativeProgram, NativeShader, NativeTexture, NativeUniformLocation,
-    NativeVertexArray,
-};
+use eframe::glow::HasContext;
 use std::sync::Arc;
 
-pub struct WorldGLSL {
-    pub program: NativeProgram,
-    pub vertex_array: NativeVertexArray,
-    texture: NativeTexture,
-    sul_world: NativeUniformLocation,
-    sul_matrix: NativeUniformLocation,
+//
+
+pub struct WorldGLSL<C: HasContext> {
+    pub program: C::Program,
+    pub vertex_array: C::VertexArray,
+    texture: C::Texture,
+    // we can't persist these because they are not Send
+    // sul_world: C::UniformLocation,
+    // sul_matrix: C::UniformLocation,
 }
 
 /// object that can use GLSL to paint the world map as an ERP that has been rotated by a matrix.
-impl WorldGLSL {
-    pub(crate) fn new(gl: &Arc<Context>) -> Self {
-        use glow::HasContext as _;
+impl<C: HasContext> WorldGLSL<C> {
+    pub(crate) fn new(gl: &Arc<C>) -> Self {
+        /* let shader_version = ShaderVersion::get(gl);
 
-        let shader_version = egui_glow::ShaderVersion::get(gl);
+        if !shader_version.is_new_shader_interface() {
+            panic!(
+                "Custom 3D painting hasn't been ported to {:?}",
+                shader_version
+            );
+        }*/
 
         unsafe {
             let program = Self::compile_program(
                 gl,
-                &shader_version,
+                // &shader_version,
                 include_str!("vertex.glsl"),
                 include_str!("fragment.glsl"),
             );
@@ -36,22 +39,22 @@ impl WorldGLSL {
                 .expect("Cannot create vertex array");
 
             let tex = { Self::world_map_texture(gl).unwrap() };
-            let sul_world = gl.get_uniform_location(program, "world").unwrap();
-            let sul_matrix = gl.get_uniform_location(program, "rotation").unwrap();
-
+            /*    let sul_world = gl.get_uniform_location(program, "world").unwrap();
+                        let sul_matrix = gl.get_uniform_location(program, "rotation").unwrap();
+            */
             Self {
                 program,
                 vertex_array,
                 texture: tex,
-                sul_world,
-                sul_matrix,
+                // sul_world,
+                // sul_matrix,
             }
         }
     }
 
-    unsafe fn world_map_texture(gl: &Arc<Context>) -> Result<NativeTexture, String> {
+    unsafe fn world_map_texture(gl: &Arc<C>) -> Result<C::Texture, String> {
         let image = WorldSampler::raw_world_map();
-        let tex: NativeTexture = gl.create_texture()?;
+        let tex: C::Texture = gl.create_texture()?;
         gl.bind_texture(glow::TEXTURE_2D, Some(tex));
         gl.tex_image_2d(
             glow::TEXTURE_2D,
@@ -78,19 +81,12 @@ impl WorldGLSL {
     }
 
     unsafe fn compile_program(
-        gl: &Arc<Context>,
-        shader_version: &ShaderVersion,
+        gl: &Arc<C>,
+        // shader_version: &ShaderVersion,
         vertex_source: &str,
         fragment_source: &str,
-    ) -> NativeProgram {
+    ) -> C::Program {
         let program = gl.create_program().expect("Cannot create program");
-
-        if !shader_version.is_new_shader_interface() {
-            panic!(
-                "Custom 3D painting hasn't been ported to {:?}",
-                shader_version
-            );
-        }
 
         let (vertex_shader_source, fragment_shader_source) = (vertex_source, fragment_source);
 
@@ -104,7 +100,7 @@ impl WorldGLSL {
             .map(|(shader_type, shader_source)| {
                 Self::compile_attach_shader(
                     gl,
-                    *shader_version,
+                    // *shader_version,
                     program,
                     *shader_type,
                     shader_source,
@@ -127,18 +123,18 @@ impl WorldGLSL {
     }
 
     unsafe fn compile_attach_shader(
-        gl: &Context,
-        shader_version: ShaderVersion,
-        program: NativeProgram,
+        gl: &C,
+        // shader_version: ShaderVersion,
+        program: C::Program,
         shader_type: u32,
         shader_source: &str,
-    ) -> NativeShader {
+    ) -> C::Shader {
         let shader = gl.create_shader(shader_type).expect("Cannot create shader");
         gl.shader_source(
             shader,
             &format!(
                 "{}\n{}",
-                shader_version.version_declaration(),
+                "", //shader_version.version_declaration(),
                 shader_source
             ),
         );
@@ -153,20 +149,24 @@ impl WorldGLSL {
         shader
     }
 
-    pub(crate) fn paint(&self, gl: &Arc<Context>, rotation: &[f32]) {
+    pub(crate) fn paint(&self, gl: &Arc<C>, rotation: &[f32]) {
         unsafe {
+            let sul_world: C::UniformLocation =
+                gl.get_uniform_location(self.program, "world").unwrap();
+            let sul_matrix: C::UniformLocation =
+                gl.get_uniform_location(self.program, "rotation").unwrap();
             //gl.viewport(100, 100, 400, 200);
             gl.use_program(Some(self.program));
             gl.bind_texture(glow::TEXTURE_2D, Some(self.texture));
-            gl.uniform_1_i32(Some(&self.sul_world), 0);
-            gl.uniform_matrix_3_f32_slice(Some(&self.sul_matrix), false, rotation);
+            gl.uniform_1_i32(Some(&sul_world), 0);
+            gl.uniform_matrix_3_f32_slice(Some(&sul_matrix), false, rotation);
             gl.bind_vertex_array(Some(self.vertex_array));
             gl.draw_arrays(glow::TRIANGLE_STRIP, 0, 4);
         }
     }
 }
 
-impl Drop for WorldGLSL {
+impl<C: HasContext> Drop for WorldGLSL<C> {
     fn drop(&mut self) {
         todo!()
     }

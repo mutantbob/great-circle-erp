@@ -746,7 +746,6 @@ dependencies = [
  "env_logger",
  "log",
  "png",
- "serde",
  "wasm-bindgen-futures",
 ]
 

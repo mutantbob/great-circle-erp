@@ -55,14 +55,8 @@ pub struct WorldMap {
     remapper: Arc<GreatCircleRemapper>,
 }
 
-impl Default for WorldMap {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl WorldMap {
-    pub fn new() -> Self {
+    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         Self {
             world_sampler: Arc::new(WorldSampler::new()),
             texture: WorldMapCalculating::Nothing,

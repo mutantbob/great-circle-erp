@@ -2,6 +2,7 @@ use crate::remapper::{transform_ll_to_ll, GreatCircleRemapper};
 use crate::world2::WorldGLSL;
 use cgmath::{Matrix3, SquareMatrix};
 use eframe::emath::Vec2;
+use eframe::glow::Context;
 use egui::{Color32, PaintCallback, PointerButton, Response, Sense, Shape, Ui, Widget};
 use std::sync::Arc;
 
@@ -13,7 +14,7 @@ pub struct WorldMap2 {
 
     anchors: Vec<Vec2>,
     last_hover: Option<(f32, f32)>,
-    world2: Arc<WorldGLSL>,
+    world2: Arc<WorldGLSL<Context>>,
     matrix: Matrix3<f32>,
     matrix_inverse: Matrix3<f32>,
 }
