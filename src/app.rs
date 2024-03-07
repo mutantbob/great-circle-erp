@@ -1,7 +1,7 @@
-use crate::world_map2::WorldMap2;
+type WorldMap = crate::world_map2::WorldMap2;
 
 pub struct App {
-    world_map: WorldMap2,
+    world_map: WorldMap,
 }
 
 impl App {
@@ -17,7 +17,7 @@ impl App {
                 }
         */
         Self {
-            world_map: WorldMap2::new(cc),
+            world_map: WorldMap::new(cc),
         }
     }
 }

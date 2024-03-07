@@ -2,12 +2,21 @@ use crate::world_map::WorldSampler;
 use eframe::glow;
 use eframe::glow::HasContext;
 use std::sync::Arc;
+/*use wasm_bindgen::prelude::wasm_bindgen;
+
+#[wasm_bindgen]
+extern "C" {
+    // Use `js_namespace` here to bind `console.log(..)` instead of just
+    // `log(..)`
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}*/
 
 //
 
 pub struct WorldGLSL<C: HasContext> {
     pub program: C::Program,
-    pub vertex_array: C::VertexArray,
+    pub vertex_array: VertexBufferHolder<C, f32>,
     texture: C::Texture,
     // we can't persist these because they are not Send
     // sul_world: C::UniformLocation,
@@ -29,19 +38,20 @@ impl<C: HasContext> WorldGLSL<C> {
         unsafe {
             let program = Self::compile_program(
                 gl,
-                // &shader_version,
                 include_str!("vertex.glsl"),
                 include_str!("fragment.glsl"),
             );
 
-            let vertex_array = gl
-                .create_vertex_array()
-                .expect("Cannot create vertex array");
+            let vertex_array = VertexBufferHolder::new(
+                gl.clone(),
+                gl.get_attrib_location(program, "vert")
+                    .expect("missing attrib vert"),
+                vec![-1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0],
+                2,
+            );
 
             let tex = { Self::world_map_texture(gl).unwrap() };
-            /*    let sul_world = gl.get_uniform_location(program, "world").unwrap();
-                        let sul_matrix = gl.get_uniform_location(program, "rotation").unwrap();
-            */
+
             Self {
                 program,
                 vertex_array,
@@ -82,7 +92,6 @@ impl<C: HasContext> WorldGLSL<C> {
 
     unsafe fn compile_program(
         gl: &Arc<C>,
-        // shader_version: &ShaderVersion,
         vertex_source: &str,
         fragment_source: &str,
     ) -> C::Program {
@@ -98,13 +107,7 @@ impl<C: HasContext> WorldGLSL<C> {
         let shaders: Vec<_> = shader_sources
             .iter()
             .map(|(shader_type, shader_source)| {
-                Self::compile_attach_shader(
-                    gl,
-                    // *shader_version,
-                    program,
-                    *shader_type,
-                    shader_source,
-                )
+                Self::compile_attach_shader(gl, program, *shader_type, shader_source)
             })
             .collect();
 
@@ -124,20 +127,12 @@ impl<C: HasContext> WorldGLSL<C> {
 
     unsafe fn compile_attach_shader(
         gl: &C,
-        // shader_version: ShaderVersion,
         program: C::Program,
         shader_type: u32,
         shader_source: &str,
     ) -> C::Shader {
         let shader = gl.create_shader(shader_type).expect("Cannot create shader");
-        gl.shader_source(
-            shader,
-            &format!(
-                "{}\n{}",
-                "", //shader_version.version_declaration(),
-                shader_source
-            ),
-        );
+        gl.shader_source(shader, shader_source);
         gl.compile_shader(shader);
         assert!(
             gl.get_shader_compile_status(shader),
@@ -155,12 +150,13 @@ impl<C: HasContext> WorldGLSL<C> {
                 gl.get_uniform_location(self.program, "world").unwrap();
             let sul_matrix: C::UniformLocation =
                 gl.get_uniform_location(self.program, "rotation").unwrap();
-            //gl.viewport(100, 100, 400, 200);
+
             gl.use_program(Some(self.program));
             gl.bind_texture(glow::TEXTURE_2D, Some(self.texture));
             gl.uniform_1_i32(Some(&sul_world), 0);
             gl.uniform_matrix_3_f32_slice(Some(&sul_matrix), false, rotation);
-            gl.bind_vertex_array(Some(self.vertex_array));
+            self.vertex_array.bind(gl);
+            gl.bind_vertex_array(Some(self.vertex_array.vertex_array));
             gl.draw_arrays(glow::TRIANGLE_STRIP, 0, 4);
         }
     }
@@ -171,3 +167,65 @@ impl<C: HasContext> Drop for WorldGLSL<C> {
         todo!()
     }
 }
+
+//
+
+pub struct VertexBufferHolder<C: HasContext, T> {
+    vertex_array: C::VertexArray,
+    vbo: C::Buffer,
+    payload: Vec<T>,
+    // gl: Arc<C>,
+}
+
+impl<C: HasContext> VertexBufferHolder<C, f32> {
+    pub fn new(
+        gl: Arc<C>,
+        program_attribute_location: u32,
+        payload: Vec<f32>,
+        scalars_per_point: i32,
+    ) -> Self {
+        let vbo = unsafe { gl.create_buffer() }.unwrap();
+        let payload_u8 = unsafe {
+            core::slice::from_raw_parts(
+                payload.as_ptr() as *const u8,
+                payload.len() * core::mem::size_of::<f32>(),
+            )
+        };
+        unsafe { gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo)) };
+        unsafe { gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, payload_u8, glow::STATIC_DRAW) };
+
+        let vao = unsafe { gl.create_vertex_array() }.unwrap();
+        unsafe { gl.bind_vertex_array(Some(vao)) };
+        unsafe { gl.enable_vertex_attrib_array(0) };
+        unsafe {
+            gl.vertex_attrib_pointer_f32(
+                program_attribute_location,
+                scalars_per_point,
+                glow::FLOAT,
+                false,
+                8,
+                0,
+            )
+        };
+
+        Self {
+            vertex_array: vao,
+            vbo,
+            payload,
+            // gl,
+        }
+    }
+}
+
+impl<C: HasContext, T> VertexBufferHolder<C, T> {
+    pub(crate) fn bind(&self, gl: &Arc<C>) {
+        unsafe { gl.bind_vertex_array(Some(self.vertex_array)) };
+    }
+}
+
+/*impl<C: HasContext, T> Drop for VertexBufferHolder<C, T> {
+    fn drop(&mut self) {
+        unsafe { self.gl.delete_vertex_array(self.vertex_array) };
+        unsafe { self.gl.delete_buffer(self.vbo) };
+    }
+}*/

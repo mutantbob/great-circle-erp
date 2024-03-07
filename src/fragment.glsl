@@ -1,4 +1,4 @@
-#version 330
+#version 300 es
 
 precision mediump float;
 uniform sampler2D world;
@@ -9,7 +9,7 @@ in vec2 tex_coord;
 #define PI 3.14159
 #define TAU (2.0*PI)
 
-vec2 frac_to_radians(float longitude_frac,float latitude_frac)
+vec2 frac_to_radians(float longitude_frac, float latitude_frac)
 {
     float theta = longitude_frac * TAU;
     float phi = (latitude_frac - 0.5) * PI;
@@ -26,7 +26,7 @@ vec3 spherical_to_cartesian(float theta, float phi)
     return vec3(x, y, z);
 }
 
-float my_fmod(float a,float b)
+float my_fmod(float a, float b)
 {
     return a - b*floor(a/b);
 }
@@ -48,7 +48,7 @@ vec2 remap(vec2 src, mat3 matrix)
 
     vec3 xyz = spherical_to_cartesian(theta_phi.x, theta_phi.y);
 
-    return cartesian_to_lat_long(matrix * xyz) ;
+    return cartesian_to_lat_long(matrix * xyz);
 }
 
 void main() {
